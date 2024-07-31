@@ -52,22 +52,20 @@ def search_jobs(driver, job_title, location):
     time.sleep(5)
 
 # Function to scroll search results
-def scroll_listing(driver):
-    listing_panel = driver.find_element(By.CLASS_NAME, "jobs-search-results-list")
+def scroll_element(driver, element ):
     scroll_increment = 300  # You can adjust this value for smoother scrolling
     scroll_pause_time = 0.5  # You can adjust this value for slower/faster scrolling
 
     current_height = 0
-    last_height = driver.execute_script("return arguments[0].scrollHeight", listing_panel)
+    last_height = driver.execute_script("return arguments[0].scrollHeight", element)
     while current_height < last_height:
-        driver.execute_script("arguments[0].scrollBy(0, arguments[1]);", listing_panel, scroll_increment)
+        driver.execute_script("arguments[0].scrollBy(0, arguments[1]);", element, scroll_increment)
         time.sleep(scroll_pause_time)
         current_height += scroll_increment
-        last_height = driver.execute_script("return arguments[0].scrollHeight", listing_panel)
+        last_height = driver.execute_script("return arguments[0].scrollHeight", element)
 
 # Function to extract details from job post
 def extract_job_details(driver, processed_job_ids, search_keyword, cursor):
-    job_details = []
     job_container = WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.CLASS_NAME, "jobs-search__job-details--container")))
 
@@ -84,12 +82,7 @@ def extract_job_details(driver, processed_job_ids, search_keyword, cursor):
         print(f"Job link: {job_link}")
         job_id = re.search(r'/jobs/view/(\d+)/', job_link).group(1)
         print(f"Job ID: {job_id}")
-        if job_id in processed_job_ids:
-            print('allredy in etraction set')
-            return []
-        else:
-            processed_job_ids.add(job_id)
-            print('added job id to set')
+
     except:
         job_link = None
         job_id = None
@@ -177,21 +170,34 @@ def main():
 
     linkedin_login(driver, username, password)
 
-    processed_job_ids = set()
-    db, curser = init_database()
+    db, cursor = init_database()
+
+    cursor.execute("select job_id from linkedin_jobs")
+    keys = [key[0] for key in cursor.fetchall()]
+    processed_job_ids = set(keys)
+
+
+
     for job_title in job_titles:
         search_jobs(driver, job_title, location)
         next_page = True
         n = 1
         while next_page:
-            scroll_listing(driver)
-            job_listings = driver.find_elements(By.CLASS_NAME, "job-card-container__link")
-            for job in job_listings:
-                try:
-                    job.click()
-                    extract_job_details(driver, processed_job_ids,job_title, curser)
-                except:
-                    pass
+            jobs_search_results = driver.find_element(By.CLASS_NAME, "jobs-search-results-list")
+            scroll_element(driver, jobs_search_results)
+            job_cards = driver.find_elements(By.CLASS_NAME, "job-card-container")
+            for job in job_cards:
+                job_id = job.get_attribute('data-job-id')
+                if job_id in processed_job_ids:
+                    print('already in extracted data set')
+                else:
+                    try:
+                        job.click()
+                        extract_job_details(driver, processed_job_ids,job_title, cursor)
+                        processed_job_ids.add(job_id)
+                        print('added job id to set')
+                    except:
+                        pass
 
             db.commit()
             n = n + 1
@@ -199,10 +205,13 @@ def main():
 
 if __name__ == "__main__":
     # Job search parameters
-    job_titles = ['NLP Engineer', 'Research Scientist',
-                  'AI Specialist', 'Statistical Analyst', 'ETL Developer', 'Python Developer',
-                  'SQL Developer', 'Technical Consultant', 'Quantitative Analyst', 'Business Analyst',
-                  'Applied Scientist', 'Data Mining Engineer']  # List of job titles to search for
+    # List of job titles to search for
+    job_titles = ['Data Analyst', 'Data Scientist', 'Machine Learning Engineer', 'Business Intelligence Analyst',
+                  'Data Engineer', 'Quantitative Analyst', 'Research Scientist', 'AI Engineer', 'Big Data Analyst',
+                  'Statistical Analyst', 'Predictive Modeler', 'ETL Developer', 'Database Administrator',
+                  'Operations Analyst', 'Risk Analyst', 'Financial Analyst', 'Market Research Analyst',
+                  'Operations Research Analyst', 'Decision Scientist', 'Web Scraping Specialist']
 
+    # location
     location = 'India'
     main()
