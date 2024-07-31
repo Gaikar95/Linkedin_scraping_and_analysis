@@ -5,9 +5,12 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from getpass import getpass
+import pymysql
 import time
 import pandas as pd
 import re
+
+from connect_sql import init_database
 
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options as ChromeOptions
@@ -30,6 +33,7 @@ def init_driver():
 
 # Function to log-in
 def linkedin_login(driver, username, password):
+    # LinkedIn login Url
     driver.get("https://www.linkedin.com/login")
 
     email_field = driver.find_element(By.ID, "username")
@@ -62,7 +66,7 @@ def scroll_listing(driver):
         last_height = driver.execute_script("return arguments[0].scrollHeight", listing_panel)
 
 # Function to extract details from job post
-def extract_job_details(driver, processed_job_ids):
+def extract_job_details(driver, processed_job_ids, search_keyword, cursor):
     job_details = []
     job_container = WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.CLASS_NAME, "jobs-search__job-details--container")))
@@ -134,20 +138,19 @@ def extract_job_details(driver, processed_job_ids):
     except:
         job_description = None
 
-    # Append details to list
-    job_details.append({
-        "job_id": job_id,
-        "job_title": job_title,
-        "company_name": company_name,
-        "job_location": job_location,
-        "date_posted": date_posted,
-        "num_applicants": num_applicants,
-        "insights": insights,
-        "job_link": job_link,
-        "job_description": job_description
-    })
+    insert_query = """
+        INSERT INTO LinkedIn_jobs (job_id, Keywords, job_title, company_name, job_location, date_posted, num_applicants, insights, job_link, job_description)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    data = (
+        job_id, search_keyword, job_title, company_name, job_location, date_posted, num_applicants,
+        ', '.join(insights) if insights else None, job_link, job_description
+    )
+    try:
+        cursor.execute(insert_query, data)
+    except pymysql.MySQLError as e:
+        print(f"Error inserting job details: {e}")
 
-    return job_details
 
 
 # Function to find and click the "next" button
@@ -167,9 +170,15 @@ def go_to_next_page(driver, n):
 
 def main():
     driver = init_driver()
+
+    # LinkedIn credentials
+    username = input('Enter username:\n')
+    password = getpass('Enter Password:\n')
+
     linkedin_login(driver, username, password)
-    all_job_details = []
+
     processed_job_ids = set()
+    db, curser = init_database()
     for job_title in job_titles:
         search_jobs(driver, job_title, location)
         next_page = True
@@ -180,32 +189,15 @@ def main():
             for job in job_listings:
                 try:
                     job.click()
-                    job_details = extract_job_details(driver, processed_job_ids)
-                    all_job_details.extend(job_details)
+                    extract_job_details(driver, processed_job_ids,job_title, curser)
                 except:
                     pass
 
+            db.commit()
             n = n + 1
-            next_page = go_to_next_page(n)
-        # Save to DataFrame
-        df = pd.DataFrame(all_job_details)
-        df.to_csv(f'linkedin_job_descriptions_{job_title}.csv', index=False)
-        print(f"Job details saved to 'linkedin_job_descriptions_{job_title}.csv'")
-
-    # Save to DataFrame
-    df = pd.DataFrame(all_job_details)
-    df.to_csv('linkedin_job_descriptions.csv', index=False)
-    print("Job details saved to 'linkedin_job_descriptions2.csv'")
-
+            next_page = go_to_next_page(driver, n)
 
 if __name__ == "__main__":
-    # LinkedIn login URL
-    login_url = 'https://www.linkedin.com/login'
-
-    # LinkedIn credentials
-    username = input('Enter username:\n')
-    password = getpass('Enter Password:\n')
-
     # Job search parameters
     job_titles = ['NLP Engineer', 'Research Scientist',
                   'AI Specialist', 'Statistical Analyst', 'ETL Developer', 'Python Developer',
