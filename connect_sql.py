@@ -54,15 +54,15 @@ def init_database():
 
 # Read the data from sql
 def read_data():
-    connection = pymysql.connect(
+    database = pymysql.connect(
         user='root',
         password='root',
         host='localhost',
         database='linkedin'
     )
 
-    data = pd.read_sql("SELECT * FROM linkedin_jobs", connection)
+    data = pd.read_sql("SELECT * FROM linkedin_jobs", database)
 
     # Close the connection
-    connection.close()
+    database.close()
     return data

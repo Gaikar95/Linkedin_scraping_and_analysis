@@ -66,23 +66,20 @@ def scroll_element(driver, element):
 
 
 # Function to extract details from job post
-def extract_job_details(driver, processed_job_ids, search_keyword, cursor):
+def extract_job_details(driver, search_keyword, cursor):
     job_container = WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.CLASS_NAME, "jobs-search__job-details--container")))
 
     # Extract job title
     try:
         job_title = job_container.find_element(By.XPATH, '//div/h1/a').text
-        print(f"Job title: {job_title}")
     except:
         job_title = None
 
     # Extract job link
     try:
         job_link = job_container.find_element(By.XPATH, '//div/h1/a').get_attribute('href')
-        print(f"Job link: {job_link}")
         job_id = re.search(r'/jobs/view/(\d+)/', job_link).group(1)
-        print(f"Job ID: {job_id}")
 
     except:
         job_link = None
@@ -93,7 +90,6 @@ def extract_job_details(driver, processed_job_ids, search_keyword, cursor):
         company_name = job_container.find_element(By.CLASS_NAME,
                                                   "job-details-jobs-unified-top-card__company-name").find_element(
             By.TAG_NAME, "a").text
-        print(f"Company name: {company_name}")
     except:
         company_name = None
 
@@ -115,8 +111,9 @@ def extract_job_details(driver, processed_job_ids, search_keyword, cursor):
     try:
         num_applicants = job_container.find_element(By.CSS_SELECTOR,
                                                     "div.job-details-jobs-unified-top-card__primary-description-container span:nth-child(5)").text
+        num_applicants = ''.join([char for char in num_applicants if char.isdigit()])
     except:
-        num_applicants = None
+        num_applicants = 0
 
     # Extract job insights
     try:
@@ -154,10 +151,9 @@ def go_to_next_page(driver, n):
         pagination = driver.find_element(By.CLASS_NAME, 'artdeco-pagination__pages')
         next_button = pagination.find_element(By.XPATH, "//button[contains(@aria-label, 'Page {}')]".format(n))
         next_button.click()
-        time.sleep(2)  # Adjust sleep time as needed
+        time.sleep(2)
         return True
     except Exception as e:
-        print(e)
         return False
 
 
@@ -179,7 +175,7 @@ def scrap(driver, job_title, location, database, processed_job_ids):
                     try:
                         driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", job)
                         job.click()
-                        extract_job_details(driver, processed_job_ids, job_title, cursor)
+                        extract_job_details(driver, job_title, cursor)
                         processed_job_ids.add(job_id)
                         print('added job id to set')
                     except:
