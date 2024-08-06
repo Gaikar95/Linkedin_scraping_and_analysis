@@ -25,7 +25,7 @@ job_descriptions = data['job_description'].dropna().tolist()
 
 def preprocess_text(text):
     text = text.lower()  # Convert to lowercase
-    text = re.sub(r'[^\w\s]', '', text)  # Remove punctuation
+    text = re.sub(r'[^\w\s\n]', '', text)  # Remove punctuation
     text = ' '.join([word for word in text.split() if word not in stop_words])  # Remove stopwords
     return text
 
